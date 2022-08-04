@@ -189,10 +189,15 @@ fn create_grid() &vstorm.Node {
 	}, 'draw')
 
 	node.add_function(fn (mut node vstorm.Node) {
+		mut window := node.context.win
+		mut ggc := window.gg
 		mut game_state := &GameState(node.get_component('state'))
 		if game_state.state != .no {
 			mut timer := &time.StopWatch(node.get_component('reset_timer'))
 			if timer.elapsed().seconds() >= 2.5 {
+				// Reenable ui_mode
+				ggc.ui_mode = true
+
 				// Reset table
 				game_state.grid = [3][3]GameElement{}
 				game_state.turn = .pos_x
@@ -205,6 +210,125 @@ fn create_grid() &vstorm.Node {
 			}
 		}
 	}, 'update')
+
+	node.add_function(fn (mut node vstorm.Node) {
+		// Get highlighted cell and add an X or O
+		mut window := node.context.win
+		mut ggc := window.gg
+		mut high_cell := &vstorm.NodeV2D(node.get_component('highlighted_cell'))
+		if high_cell.x != -1 && high_cell.y != -1 {
+			mut game_state := &GameState(node.get_component('state'))
+			game_state.grid[int(high_cell.x)][int(high_cell.y)] = game_state.turn
+			if game_state.turn == .pos_x {
+				game_state.turn = .pos_o
+			}
+			else {
+				game_state.turn = .pos_x
+			}
+
+			// Check for win
+			for j := 0; j < 3 && game_state.state == .no; j++ {
+				// Per line
+				if game_state.grid[0][j] != .pos_null {
+					game_state.state = .not_equal
+					game_state.line = GameEndLine {
+						start: vstorm.NodeV2D{
+							x: 0
+							y: j
+						}
+						end: vstorm.NodeV2D{
+							x: 2
+							y: j
+						}
+					}
+					for i := 1; i < 3; i++ {
+						if game_state.grid[i][j] != game_state.grid[0][j] {
+							game_state.state = .no
+						}
+					}
+				}
+
+				// Per column
+				if game_state.grid[j][0] != .pos_null && game_state.state == .no {
+					game_state.state = .not_equal
+					game_state.line = GameEndLine {
+						start: vstorm.NodeV2D{
+							x: j
+							y: 0
+						}
+						end: vstorm.NodeV2D{
+							x: j
+							y: 2
+						}
+					}
+					for i := 1; i < 3; i++ {
+						if game_state.grid[j][i] != game_state.grid[j][0] {
+							game_state.state = .no
+						}
+					}
+				}
+			}
+
+			// Diagonal 1
+			if game_state.grid[0][0] != .pos_null && game_state.state == .no {
+				game_state.state = .not_equal
+				game_state.line = GameEndLine {
+					start: vstorm.NodeV2D{
+						x: 0
+						y: 0
+					}
+					end: vstorm.NodeV2D{
+						x: 2
+						y: 2
+					}
+				}
+				for i := 1; i < 3; i++ {
+					if game_state.grid[i][i] != game_state.grid[0][0] {
+						game_state.state = .no
+					}
+				}
+			}
+
+			// Diagonal 2
+			if game_state.grid[2][0] != .pos_null && game_state.state == .no {
+				game_state.state = .not_equal
+				game_state.line = GameEndLine {
+					start: vstorm.NodeV2D{
+						x: 2
+						y: 0
+					}
+					end: vstorm.NodeV2D{
+						x: 0
+						y: 2
+					}
+				}
+				for i := 1; i < 3; i++ {
+					if game_state.grid[2 - i][i] != game_state.grid[2][0] {
+						game_state.state = .no
+					}
+				}
+			}
+
+			// Last, check for equal
+			if game_state.state == .no {
+				game_state.state = .equal
+				for i := 0; i < 3; i++ {
+					for j := 0; j < 3; j++ {
+						if game_state.grid[i][j] == .pos_null {
+							game_state.state = .no
+						}
+					}
+				}
+			}
+
+			// If round end, start the timer
+			if game_state.state != .no {
+				mut timer := &time.StopWatch(node.get_component('reset_timer'))
+				timer.restart()
+				ggc.ui_mode = false
+			}
+		}
+	}, 'on_press')
 
 	node.add_function(fn (mut node vstorm.Node) {
 		mut window := node.context.win
@@ -260,119 +384,8 @@ fn create_grid() &vstorm.Node {
 				}
 			}
 			.mouse_up {
-				// Get highlighted cell and add an X or O
-				mut high_cell := &vstorm.NodeV2D(node.get_component('highlighted_cell'))
-				if high_cell.x != -1 && high_cell.y != -1 {
-					mut game_state := &GameState(node.get_component('state'))
-					game_state.grid[int(high_cell.x)][int(high_cell.y)] = game_state.turn
-					if game_state.turn == .pos_x {
-						game_state.turn = .pos_o
-					}
-					else {
-						game_state.turn = .pos_x
-					}
-
-					// Check for win
-					for j := 0; j < 3 && game_state.state == .no; j++ {
-						// Per line
-						if game_state.grid[0][j] != .pos_null {
-							game_state.state = .not_equal
-							game_state.line = GameEndLine {
-								start: vstorm.NodeV2D{
-									x: 0
-									y: j
-								}
-								end: vstorm.NodeV2D{
-									x: 2
-									y: j
-								}
-							}
-							for i := 1; i < 3; i++ {
-								if game_state.grid[i][j] != game_state.grid[0][j] {
-									game_state.state = .no
-								}
-							}
-						}
-
-						// Per column
-						if game_state.grid[j][0] != .pos_null && game_state.state == .no {
-							game_state.state = .not_equal
-							game_state.line = GameEndLine {
-								start: vstorm.NodeV2D{
-									x: j
-									y: 0
-								}
-								end: vstorm.NodeV2D{
-									x: j
-									y: 2
-								}
-							}
-							for i := 1; i < 3; i++ {
-								if game_state.grid[j][i] != game_state.grid[j][0] {
-									game_state.state = .no
-								}
-							}
-						}
-					}
-
-					// Diagonal 1
-					if game_state.grid[0][0] != .pos_null && game_state.state == .no {
-						game_state.state = .not_equal
-						game_state.line = GameEndLine {
-							start: vstorm.NodeV2D{
-								x: 0
-								y: 0
-							}
-							end: vstorm.NodeV2D{
-								x: 2
-								y: 2
-							}
-						}
-						for i := 1; i < 3; i++ {
-							if game_state.grid[i][i] != game_state.grid[0][0] {
-								game_state.state = .no
-							}
-						}
-					}
-
-					// Diagonal 2
-					if game_state.grid[2][0] != .pos_null && game_state.state == .no {
-						game_state.state = .not_equal
-						game_state.line = GameEndLine {
-							start: vstorm.NodeV2D{
-								x: 2
-								y: 0
-							}
-							end: vstorm.NodeV2D{
-								x: 0
-								y: 2
-							}
-						}
-						for i := 1; i < 3; i++ {
-							if game_state.grid[2 - i][i] != game_state.grid[2][0] {
-								game_state.state = .no
-							}
-						}
-					}
-
-					// Last, check for equal
-					if game_state.state == .no {
-						game_state.state = .equal
-						for i := 0; i < 3; i++ {
-							for j := 0; j < 3; j++ {
-								if game_state.grid[i][j] == .pos_null {
-									game_state.state = .no
-								}
-							}
-						}
-					}
-
-					// If round end, start the timer
-					if game_state.state != .no {
-						mut timer := &time.StopWatch(node.get_component('reset_timer'))
-						timer.restart()
-					}
-				}
+				// Send event
+				node.execute('on_press')
 			}
 			else {}
 		}

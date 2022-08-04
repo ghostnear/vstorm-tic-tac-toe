@@ -7,3 +7,4 @@ vstorm-ttt
 *.dylib
 *.dll
 vls.log
+build-android-prod.bat
