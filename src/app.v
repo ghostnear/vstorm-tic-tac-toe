@@ -26,6 +26,6 @@ fn main() {
 	}
 
 	// App runner
-	mut app := vstorm.new_storm_context(app_config)
+	mut app := vstorm.new_storm_context(mut app_config)
 	app.run()
 }
